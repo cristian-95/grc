@@ -46,7 +46,13 @@ type PostStore interface {
 type CommentStore interface {
 	Comment(id uuid.UUID) (Comment, error)
 	CommentsByPost(postID uuid.UUID) ([]Comment, error)
-	CreateComment(p *Comment) error
-	UpdateComment(p *Comment) error
+	CreateComment(c *Comment) error
+	UpdateComment(c *Comment) error
 	DeleteComment(id uuid.UUID) error
+}
+
+type Store interface {
+	ThreadStore
+	PostStore
+	CommentStore
 }
