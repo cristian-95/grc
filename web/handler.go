@@ -7,6 +7,7 @@ import (
 	"github.com/cristian-95/grc"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+	"github.com/google/uuid"
 )
 
 func NewHandler(store grc.Store) *Handler {
@@ -19,6 +20,8 @@ func NewHandler(store grc.Store) *Handler {
 	h.Route("/threads", func(r chi.Router) {
 		r.Get("/", h.ThreadsList())
 		r.Get("/new", h.ThreadsCreate())
+		r.Post("/", h.ThreadsStore())
+		r.Post("/{id}/delete", h.ThreadsDelete())
 	})
 
 	return h
@@ -36,8 +39,14 @@ const threadsListHTML = `
 {{range .Threads}}
 	<dt><strong>{{.Title}}</strong></dt>
 	<dd>{{.Description}}</dd>
+	<dd>
+	<form action="/threads/{{.ID}}/delete" method="POST">
+		<button type="submit">Delete</button>
+	</form>
+	</dd>
 {{end}}
 </dl>
+<a href="/threads/new">Create a new Thread</a>
 `
 
 func (h *Handler) ThreadsList() http.HandlerFunc {
@@ -59,7 +68,7 @@ func (h *Handler) ThreadsList() http.HandlerFunc {
 
 const threadCreateHTML = `
 <h1>New Thread</h1>
-<form action="threads" method="POST">
+<form action="/threads" method="POST">
 	<table>
 		<tr>
 			<td>Title</td>
@@ -70,7 +79,7 @@ const threadCreateHTML = `
 			<td><input type="text" name="description" /></td>
 		</tr>
 	</table>
-	<button type="submit" >Create Thread</button>
+	<button type="submit">Create Thread</button>
 </form>
 `
 
@@ -78,5 +87,44 @@ func (h *Handler) ThreadsCreate() http.HandlerFunc {
 	tmpl := template.Must(template.New("").Parse(threadCreateHTML))
 	return func(w http.ResponseWriter, r *http.Request) {
 		tmpl.Execute(w, nil)
+	}
+}
+
+func (h *Handler) ThreadsStore() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		title := r.FormValue("title")
+		description := r.FormValue("description")
+
+		if err := h.store.CreateThread(&grc.Thread{
+			ID:          uuid.New(),
+			Title:       title,
+			Description: description,
+		}); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		http.Redirect(w, r, "/threads", http.StatusFound)
+	}
+
+}
+
+func (h *Handler) ThreadsDelete() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		idStr := chi.URLParam(r, "id")
+
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if err := h.store.DeleteThread(id); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		http.Redirect(w, r, "/threads", http.StatusFound)
+
 	}
 }

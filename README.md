@@ -1,3 +1,3 @@
 # grc
 
-- a Reddit clone made with golang(following a tutorial)
+- Um clone do reddit escrito em Golang.
