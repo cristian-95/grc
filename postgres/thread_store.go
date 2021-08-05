@@ -13,6 +13,7 @@ type ThreadStore struct {
 	*sqlx.DB
 }
 
+// Thread consulta o banco de dados e retorna a thread correspondente ao parametro id.
 func (s *ThreadStore) Thread(id uuid.UUID) (grc.Thread, error) {
 	var t grc.Thread
 	if err := s.Get(&t, `SELECT * FROM threads WHERE id = $1`, id); err != nil {

@@ -22,7 +22,7 @@ func (s *CommentStore) Comment(id uuid.UUID) (grc.Comment, error) {
 
 func (s *CommentStore) CommentsByPost(postID uuid.UUID) ([]grc.Comment, error) {
 	var cc []grc.Comment
-	if err := s.Select(&cc, `SELECT * FROM comments WHERE post_id = $1`, postID); err != nil {
+	if err := s.Select(&cc, `SELECT * FROM comments WHERE post_id = $1 ORDER BY votes DESC`, postID); err != nil {
 		return []grc.Comment{}, fmt.Errorf("error getting comments: %w", err)
 	}
 	return cc, nil
