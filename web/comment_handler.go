@@ -3,18 +3,27 @@ package web
 import (
 	"net/http"
 
+	"github.com/alexedwards/scs/v2"
 	"github.com/cristian-95/grc"
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
 )
 
 type CommentHandler struct {
-	store grc.Store
+	store    grc.Store
+	sessions *scs.SessionManager
 }
 
 func (h *CommentHandler) Store() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		content := r.FormValue("content")
+		form := CreateCommentForm{
+			Content: r.FormValue("content"),
+		}
+		if !form.Validate() {
+			h.sessions.Put(r.Context(), "form", form)
+			http.Redirect(w, r, r.Referer(), http.StatusFound)
+			return
+		}
 		idStr := chi.URLParam(r, "postID")
 
 		id, err := uuid.Parse(idStr)
@@ -26,11 +35,12 @@ func (h *CommentHandler) Store() http.HandlerFunc {
 		if err := h.store.CreateComment(&grc.Comment{
 			ID:      uuid.New(),
 			PostID:  id,
-			Content: content,
+			Content: form.Content,
 		}); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		h.sessions.Put(r.Context(), "flash", "Your comment has been submited")
 
 		http.Redirect(w, r, r.Referer(), http.StatusFound)
 	}

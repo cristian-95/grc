@@ -4,6 +4,12 @@ import "github.com/google/uuid"
 
 // Entities:
 
+type User struct {
+	ID       uuid.UUID `db:"id"`
+	Username string    `db:"username"`
+	Password string    `db:"password"`
+}
+
 type Thread struct {
 	ID          uuid.UUID `db:"id"`
 	Title       string    `db:"title"`
@@ -54,8 +60,17 @@ type CommentStore interface {
 	DeleteComment(id uuid.UUID) error
 }
 
+type UserStore interface {
+	User(id uuid.UUID) (User, error)
+	UsersByUsername(username string) (User, error)
+	CreateUser(u *User) error
+	UpdateUser(u *User) error
+	DeleteUser(id uuid.UUID) error
+}
+
 type Store interface {
 	ThreadStore
 	PostStore
 	CommentStore
+	UserStore
 }

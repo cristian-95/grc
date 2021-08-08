@@ -4,17 +4,23 @@ import (
 	"html/template"
 	"net/http"
 
+	"github.com/alexedwards/scs/v2"
 	"github.com/cristian-95/grc"
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
+	"github.com/gorilla/csrf"
 )
 
 type PostHandler struct {
-	store grc.Store
+	store    grc.Store
+	sessions *scs.SessionManager
 }
 
 func (h *PostHandler) Create() http.HandlerFunc {
 	type data struct {
+		SessionData
+
+		CSRF   template.HTML
 		Thread grc.Thread
 	}
 	tmpl := template.Must(template.ParseFiles("templates/layout.html", "templates/post_create.html"))
@@ -33,16 +39,22 @@ func (h *PostHandler) Create() http.HandlerFunc {
 			return
 		}
 
-		tmpl.Execute(w, data{Thread: t})
+		tmpl.Execute(w, data{
+			SessionData: GetSessionData(h.sessions, r.Context()),
+			CSRF:        csrf.TemplateField(r),
+			Thread:      t,
+		})
 
 	}
 }
 
 func (h *PostHandler) Show() http.HandlerFunc {
 	type data struct {
+		SessionData
 		Thread   grc.Thread
 		Post     grc.Post
 		Comments []grc.Comment
+		CSRF     template.HTML
 	}
 
 	tmpl := template.Must(template.ParseFiles("templates/layout.html", "templates/post.html"))
@@ -78,14 +90,28 @@ func (h *PostHandler) Show() http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		tmpl.Execute(w, data{Thread: t, Post: p, Comments: cc})
+		tmpl.Execute(w, data{
+			SessionData: GetSessionData(h.sessions, r.Context()),
+			Thread:      t,
+			Post:        p,
+			Comments:    cc,
+			CSRF:        csrf.TemplateField(r),
+		})
 	}
 }
 
 func (h *PostHandler) Store() http.HandlerFunc {
+
 	return func(w http.ResponseWriter, r *http.Request) {
-		title := r.FormValue("title")
-		content := r.FormValue("content")
+		form := CreatePostForm{
+			Title:   r.FormValue("title"),
+			Content: r.FormValue("content"),
+		}
+		if !form.Validate() {
+			h.sessions.Put(r.Context(), "form", form)
+			http.Redirect(w, r, r.Referer(), http.StatusFound)
+			return
+		}
 
 		idStr := chi.URLParam(r, "id")
 		id, err := uuid.Parse(idStr)
@@ -102,13 +128,14 @@ func (h *PostHandler) Store() http.HandlerFunc {
 		p := &grc.Post{
 			ID:       uuid.New(),
 			ThreadID: t.ID,
-			Title:    title,
-			Content:  content,
+			Title:    form.Title,
+			Content:  form.Content,
 		}
 		if err := h.store.CreatePost(p); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		h.sessions.Put(r.Context(), "flash", "Your post has been created")
 
 		http.Redirect(w, r, "/threads/"+t.ID.String()+"/"+p.ID.String(), http.StatusFound)
 	}
